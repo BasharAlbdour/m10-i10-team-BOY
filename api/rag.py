@@ -28,6 +28,12 @@ def empty_rag_response() -> dict:
     return {"answer": SENTINEL, "citations": [], "confidence": 0.0}
 
 
+def strip_prompt_prefix(raw: str, prompt: str) -> str:
+    if raw.startswith(prompt):
+        return raw[len(prompt):].strip()
+    return raw.strip()
+
+
 def assemble_prompt(question: str, chunks: list[dict]) -> Tuple[str, dict[int, dict]]:
     """Number the retrieved chunks 1..k and substitute into the prompt template.
 
@@ -120,10 +126,14 @@ def compose_rag(question: str, embedder, weaviate_client, generator, k: int = 4)
 
     prompt, numbered = assemble_prompt(question, retrieved)
     raw = generator(prompt, max_new_tokens=256, do_sample=False)[0]["generated_text"]
-    citations = extract_citations(raw, numbered)
+    answer = strip_prompt_prefix(raw, prompt)
+    if not answer:
+        return empty_rag_response()
+
+    citations = extract_citations(answer, numbered)
     if not citations:
         return empty_rag_response()
 
     confidence = sum(c["score"] for c in citations) / len(citations)
     confidence = max(0.0, min(1.0, confidence))
-    return {"answer": raw, "citations": citations, "confidence": confidence}
+    return {"answer": answer, "citations": citations, "confidence": confidence}
