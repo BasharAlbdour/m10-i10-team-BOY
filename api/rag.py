@@ -28,6 +28,15 @@ def empty_rag_response() -> dict:
     return {"answer": SENTINEL, "citations": [], "confidence": 0.0}
 
 
+def extractive_fallback_response(chunk: dict) -> dict:
+    confidence = max(0.0, min(1.0, chunk["score"]))
+    return {
+        "answer": f"{chunk['text']} [1]",
+        "citations": [{"chunk_id": chunk["chunk_id"], "score": chunk["score"]}],
+        "confidence": confidence,
+    }
+
+
 def strip_prompt_prefix(raw: str, prompt: str) -> str:
     if raw.startswith(prompt):
         return raw[len(prompt):].strip()
@@ -133,7 +142,7 @@ def compose_rag(question: str, embedder, weaviate_client, generator, k: int = 4)
     raw = generator(prompt, max_new_tokens=256, do_sample=False)[0]["generated_text"]
     answer = strip_prompt_prefix(raw, prompt)
     if not answer or not has_substantive_answer(answer):
-        return empty_rag_response()
+        return extractive_fallback_response(retrieved[0])
 
     citations = extract_citations(answer, numbered)
     if not citations:
