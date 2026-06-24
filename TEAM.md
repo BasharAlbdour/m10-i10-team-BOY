@@ -20,7 +20,7 @@ This file is the team roster artifact for the Module 10 four-service Docker Comp
 | Role | Team Member identifier | Assigned by | Branch | Internal-PR reviewer | Primary files owned |
 |---|---|---|---|---|---|
 | Backend lead | _(initials or anon ID)_ | Instructional team | `backend/api-endpoints` | Frontend lead | `api/main.py`, `api/models.py`, `api/rag.py`, `api/deps.py`, `api/Dockerfile` |
-| Frontend lead | _(initials or anon ID)_ | Instructional team | `frontend/nextjs-pages` | Backend lead | `web/pages/{extract,kg,rag}.tsx`, `web/lib/types.ts`, `web/Dockerfile`, `tests/frontend/playwright/*` |
+| Frontend lead | Yusra Mansour | Instructional team | `frontend/nextjs-pages` | Backend lead | `web/pages/{extract,kg,rag}.tsx`, `web/lib/types.ts`, `web/Dockerfile`, `tests/frontend/playwright/*` |
 | Infra-Integration lead | _(initials or anon ID)_ | Instructional team | `infra/docker-compose` | Backend lead | `docker-compose.yml`, `seed_neo4j.sh`, `seed_weaviate.sh`, `.env.example`, `README.md`, `tests/integration/*` |
 
 **Fallback compositions for non-3-Team-Member teams:**
@@ -44,12 +44,12 @@ The TA cross-references this checklist against `git log --author=<email>` on the
 
 ### Frontend lead
 
-- [ ] `web/pages/extract.tsx`
-- [ ] `web/pages/kg.tsx`
-- [ ] `web/pages/rag.tsx`
-- [ ] `web/lib/types.ts` — three TypeScript interfaces mirroring Pydantic
-- [ ] `web/Dockerfile` — multi-stage Node
-- [ ] `tests/frontend/playwright/*.spec.ts` — one per page
+- [x] `web/pages/extract.tsx`
+- [x] `web/pages/kg.tsx`
+- [x] `web/pages/rag.tsx`
+- [x] `web/lib/types.ts` — three TypeScript interfaces mirroring Pydantic
+- [x] `web/Dockerfile` — multi-stage Node
+- [x] `tests/frontend/playwright/*.spec.ts` — one per page
 
 ### Infra-Integration lead
 
