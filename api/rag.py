@@ -24,6 +24,30 @@ SENTINEL = "I cannot answer this from the available sources"
 CITATION_PATTERN = re.compile(r"\[(\d+)\]")
 
 
+def empty_rag_response() -> dict:
+    return {"answer": SENTINEL, "citations": [], "confidence": 0.0}
+
+
+def extractive_fallback_response(chunk: dict) -> dict:
+    confidence = max(0.0, min(1.0, chunk["score"]))
+    return {
+        "answer": f"{chunk['text']} [1]",
+        "citations": [{"chunk_id": chunk["chunk_id"], "score": chunk["score"]}],
+        "confidence": confidence,
+    }
+
+
+def strip_prompt_prefix(raw: str, prompt: str) -> str:
+    if raw.startswith(prompt):
+        return raw[len(prompt):].strip()
+    return raw.strip()
+
+
+def has_substantive_answer(answer: str) -> bool:
+    without_citations = CITATION_PATTERN.sub("", answer)
+    return bool(re.search(r"[A-Za-z0-9]", without_citations))
+
+
 def assemble_prompt(question: str, chunks: list[dict]) -> Tuple[str, dict[int, dict]]:
     """Number the retrieved chunks 1..k and substitute into the prompt template.
 
@@ -54,6 +78,44 @@ def extract_citations(answer: str, numbered: dict[int, dict]) -> list[dict]:
     return cited
 
 
+def parse_retrieved_chunks(raw_query) -> list[dict] | None:
+    """Normalize Weaviate's response; return None for invalid shapes."""
+    if not isinstance(raw_query, dict):
+        return None
+    data = raw_query.get("data")
+    if not isinstance(data, dict):
+        return None
+    get_block = data.get("Get")
+    if not isinstance(get_block, dict):
+        return None
+    chunks = get_block.get("Chunk")
+    if not isinstance(chunks, list):
+        return None
+
+    retrieved = []
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            return None
+        additional = chunk.get("_additional")
+        if not isinstance(additional, dict):
+            return None
+        distance = additional.get("distance")
+        if "chunk_id" not in chunk or "text" not in chunk or distance is None:
+            return None
+        try:
+            score = 1.0 - float(distance)
+        except (TypeError, ValueError):
+            return None
+        retrieved.append(
+            {
+                "chunk_id": chunk["chunk_id"],
+                "text": chunk["text"],
+                "score": score,
+            }
+        )
+    return retrieved
+
+
 def compose_rag(question: str, embedder, weaviate_client, generator, k: int = 4) -> dict:
     """Run the four-stage RAG pipeline.
 
@@ -72,23 +134,20 @@ def compose_rag(question: str, embedder, weaviate_client, generator, k: int = 4)
         .with_additional(["distance"])
         .do()
     )
-    retrieved = [
-        {
-            "chunk_id": c["chunk_id"],
-            "text": c["text"],
-            "score": 1.0 - c["_additional"]["distance"],
-        }
-        for c in raw_query["data"]["Get"]["Chunk"]
-    ]
+    retrieved = parse_retrieved_chunks(raw_query)
     if not retrieved:
-        return {"answer": SENTINEL, "citations": [], "confidence": 0.0}
+        return empty_rag_response()
 
     prompt, numbered = assemble_prompt(question, retrieved)
     raw = generator(prompt, max_new_tokens=256, do_sample=False)[0]["generated_text"]
-    citations = extract_citations(raw, numbered)
+    answer = strip_prompt_prefix(raw, prompt)
+    if not answer or not has_substantive_answer(answer):
+        return extractive_fallback_response(retrieved[0])
+
+    citations = extract_citations(answer, numbered)
     if not citations:
-        return {"answer": SENTINEL, "citations": [], "confidence": 0.0}
+        return empty_rag_response()
 
     confidence = sum(c["score"] for c in citations) / len(citations)
     confidence = max(0.0, min(1.0, confidence))
-    return {"answer": raw, "citations": citations, "confidence": confidence}
+    return {"answer": answer, "citations": citations, "confidence": confidence}
