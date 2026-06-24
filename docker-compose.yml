@@ -28,6 +28,108 @@
 #             /v1/.well-known/ready.
 # - volumes block declares named neo4j_data and weaviate_data.
 
-services: {}
+# Integration 10 — four-service stack.
+#
+# Build-context discipline: api uses context: . (repo root) so that
+# package-relative imports (api.main, api.deps, …) resolve inside the
+# container. `build: ./api` would break with ModuleNotFoundError.
+#
+# NEXT_PUBLIC_API_URL is a BUILD ARG, not a runtime env var. Next.js
+# bakes NEXT_PUBLIC_* into the client bundle at build time; setting it
+# under `environment:` at runtime never reaches the browser.
+#
+# Healthcheck tool choices:
+#   neo4j   → cypher-shell (ships in the neo4j image; curl not present)
+#   weaviate → wget         (ships in semitechnologies/weaviate; curl not present)
+#   api     → python -c "import urllib…" (python:3.11-slim has no curl/wget)
+#   web     → node -e "require('http')…" (node:20-slim has no curl/wget)
+#
+# NEO4J_AUTH only on the neo4j service. The neo4j image treats every
+# NEO4J_* key as a config namespace — setting NEO4J_USER or NEO4J_PASSWORD
+# inside the neo4j service block breaks startup. Those two vars belong in
+# .env and are interpolated by Compose into the api service and scripts.
 
-volumes: {}
+services:
+
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD}"
+      NEO4J_dbms_memory_heap_max__size: "1G"
+      NEO4J_dbms_memory_pagecache_size: "512M"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "${NEO4J_USER}", "-p", "${NEO4J_PASSWORD}", "RETURN 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  weaviate:
+    image: semitechnologies/weaviate:1.24.10
+    ports:
+      - "8080:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: "20"
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      DEFAULT_VECTORIZER_MODULE: "none"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--tries=1", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      NEO4J_URI: "bolt://neo4j:7687"
+      WEAVIATE_URL: "http://weaviate:8080"
+      NEO4J_USER: "${NEO4J_USER}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
+      WEB_ORIGIN: "${WEB_ORIGIN}"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e",
+        "require('http').get('http://localhost:3000', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  neo4j_data:
+  weaviate_data:
