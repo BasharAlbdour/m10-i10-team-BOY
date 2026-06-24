@@ -31,6 +31,7 @@ from .models import (
     KGResponse,
     RAGRequest,
     RAGResponse,
+    ReadyDetail,
     UnsupportedQueryDetail,
 )
 from .nlp import extract_entities
@@ -103,7 +104,7 @@ def healthz() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@app.get("/readyz")
+@app.get("/readyz", response_model=ReadyDetail)
 def readyz(
     session=Depends(get_session),
     weaviate_client=Depends(get_weaviate),
