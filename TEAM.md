@@ -39,18 +39,18 @@ The TA cross-references this checklist against `git log --author=<email>` on the
 ### Backend lead (OH)
 
 - [x] `api/main.py` — path operations, `lifespan`, CORS middleware
-- [x] `api/models.py` — Pydantic shapes
+- [ ] `api/models.py` — Pydantic shapes
 - [x] `api/rag.py` — RAG composer with grounding contract
-- [x] `api/deps.py` — `Depends()` functions
-- [x] `api/Dockerfile` — single-stage Python
+- [ ] `api/deps.py` — `Depends()` functions
+- [ ] `api/Dockerfile` — single-stage Python
 
 ### Frontend lead (YM)
 
-- [x] `web/pages/extract.tsx`
-- [x] `web/pages/kg.tsx`
-- [x] `web/pages/rag.tsx`
-- [x] `web/lib/types.ts` — three TypeScript interfaces mirroring Pydantic
-- [x] `web/Dockerfile` — multi-stage Node
+- [ ] `web/pages/extract.tsx` 
+- [ ] `web/pages/kg.tsx`
+- [ ] `web/pages/rag.tsx`
+- [ ] `web/lib/types.ts` — three TypeScript interfaces mirroring Pydantic
+- [ ] `web/Dockerfile` — multi-stage Node
 - [x] `tests/frontend/playwright/*.spec.ts` — one per page
 
 ### Infra-Integration lead (BA)
