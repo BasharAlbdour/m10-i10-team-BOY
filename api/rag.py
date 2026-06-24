@@ -34,6 +34,11 @@ def strip_prompt_prefix(raw: str, prompt: str) -> str:
     return raw.strip()
 
 
+def has_substantive_answer(answer: str) -> bool:
+    without_citations = CITATION_PATTERN.sub("", answer)
+    return bool(re.search(r"[A-Za-z0-9]", without_citations))
+
+
 def assemble_prompt(question: str, chunks: list[dict]) -> Tuple[str, dict[int, dict]]:
     """Number the retrieved chunks 1..k and substitute into the prompt template.
 
@@ -127,7 +132,7 @@ def compose_rag(question: str, embedder, weaviate_client, generator, k: int = 4)
     prompt, numbered = assemble_prompt(question, retrieved)
     raw = generator(prompt, max_new_tokens=256, do_sample=False)[0]["generated_text"]
     answer = strip_prompt_prefix(raw, prompt)
-    if not answer:
+    if not answer or not has_substantive_answer(answer):
         return empty_rag_response()
 
     citations = extract_citations(answer, numbered)
